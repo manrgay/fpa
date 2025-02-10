@@ -20,6 +20,7 @@ const pool = mysql.createPool({
   database: 'app',
   connectionLimit: 5,
   port: 3307, // ตรวจสอบพอร์ตว่าถูกต้องหรือไม่
+  charset: "utf8mb4"
 });
 
 // Configure multer to store images
@@ -238,6 +239,43 @@ app.get('/postsa', async (req, res) => {
         res.status(500).send('Error retrieving data');
     }
 });
+
+app.get('/comments/:postId', async (req, res) => {
+  const postId = req.params.postId;
+
+  try {
+    const [rows] = await pool.promise().query('SELECT * FROM comments WHERE postId = ?', [postId]);
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error('Error fetching comments:', err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
+
+// 🔹 API เพิ่มความคิดเห็น
+// 🔹 API เพิ่มความคิดเห็น
+app.post('/comments', async (req, res) => {
+  const { postId, username, comment } = req.body;
+
+  if (!postId || !username || !comment) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    const [result] = await pool.promise().query(
+      "INSERT INTO comments (postId, username, comment) VALUES (?, ?, ?)",
+      [postId, username, comment]
+    );
+
+    res.status(201).json({ message: "Comment added successfully", commentId: result.insertId });
+  } catch (error) {
+    console.error("Error inserting comment:", error);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+
+
 
 // Start the server
 app.listen(port, () => {
