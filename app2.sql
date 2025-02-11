@@ -16,7 +16,7 @@
 
 
 -- Dumping database structure for app
-CREATE DATABASE IF NOT EXISTS `app` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
+CREATE DATABASE IF NOT EXISTS `app` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci */;
 USE `app`;
 
 -- Dumping structure for table app.comments
@@ -29,12 +29,13 @@ CREATE TABLE IF NOT EXISTS `comments` (
   PRIMARY KEY (`id`),
   KEY `post_id` (`post_id`),
   CONSTRAINT `comments_ibfk_1` FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
 -- Dumping data for table app.comments: ~1 rows (approximately)
 DELETE FROM `comments`;
 INSERT INTO `comments` (`id`, `post_id`, `name`, `comment`, `created_at`) VALUES
-	(1, NULL, 'mos', 'awdassdw', '2025-02-11 02:31:33');
+	(1, NULL, 'mos', 'awdassdw', '2025-02-11 02:31:33'),
+	(2, NULL, 'อาม', 'สะดวกง่าย', '2025-02-11 04:16:15');
 
 -- Dumping structure for table app.pet_owner
 CREATE TABLE IF NOT EXISTS `pet_owner` (
