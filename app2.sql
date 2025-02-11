@@ -19,6 +19,23 @@
 CREATE DATABASE IF NOT EXISTS `app` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
 USE `app`;
 
+-- Dumping structure for table app.comments
+CREATE TABLE IF NOT EXISTS `comments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `post_id` int(11) DEFAULT NULL,
+  `name` varchar(255) NOT NULL,
+  `comment` text NOT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `post_id` (`post_id`),
+  CONSTRAINT `comments_ibfk_1` FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+-- Dumping data for table app.comments: ~1 rows (approximately)
+DELETE FROM `comments`;
+INSERT INTO `comments` (`id`, `post_id`, `name`, `comment`, `created_at`) VALUES
+	(1, NULL, 'mos', 'awdassdw', '2025-02-11 02:31:33');
+
 -- Dumping structure for table app.pet_owner
 CREATE TABLE IF NOT EXISTS `pet_owner` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -35,7 +52,7 @@ CREATE TABLE IF NOT EXISTS `pet_owner` (
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
--- Dumping data for table app.pet_owner: ~1 rows (approximately)
+-- Dumping data for table app.pet_owner: ~0 rows (approximately)
 DELETE FROM `pet_owner`;
 INSERT INTO `pet_owner` (`id`, `name`, `pet_name`, `age_group`, `gender`, `category`, `phone`, `email`, `pick_up_date`, `created_at`) VALUES
 	(1, 'mosaa', 'poadw', '7-12', 'Male', 'Dog', '0981238223', 'pos@gmail.com', '2025-01-10', '2025-02-08 06:08:28');
@@ -52,12 +69,12 @@ CREATE TABLE IF NOT EXISTS `posts` (
   `image_path` varchar(255) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
 -- Dumping data for table app.posts: ~1 rows (approximately)
 DELETE FROM `posts`;
 INSERT INTO `posts` (`id`, `name`, `age`, `gender`, `adopt`, `phone`, `price`, `image_path`, `created_at`) VALUES
-	(2, 'mas', '21', 'Female', 'Dog And Cat', '0981234553', 200.00, 'uploads\\1739020467843-images (6).jpg', '2025-02-08 13:14:27');
+	(3, 'mas', '23', 'Female', 'Dog', '0984124225', 500.00, 'uploads\\1739026373975-images (6).jpg', '2025-02-08 14:52:53');
 
 -- Dumping structure for table app.users
 CREATE TABLE IF NOT EXISTS `users` (
