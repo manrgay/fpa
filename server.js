@@ -1,5 +1,5 @@
 const express = require('express');
-const mysql = require('mysql2'); // ใช้ mysql2 แทน mariadb
+const mysql = require('mysql2/promise'); // ใช้ mysql2/promise แทน mariadb
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
@@ -39,32 +39,27 @@ const upload = multer({ storage: storage });
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
-  // ตรวจสอบว่ามีการส่งข้อมูล email และ password มาในคำขอหรือไม่
   if (!email || !password) {
     return res.status(400).send({ message: 'Email and password are required' });
   }
 
   try {
-    // ค้นหาผู้ใช้ในฐานข้อมูล
-    const [results] = await pool.promise().query('SELECT * FROM users WHERE email = ?', [email]);
+    const [results] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
 
-    // ตรวจสอบว่ามีผู้ใช้หรือไม่
     if (results.length === 0) {
       return res.status(400).send({ message: 'User not found' });
     }
 
     const user = results[0];
 
-    // ตรวจสอบรหัสผ่านที่เข้ารหัส
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
       return res.status(400).send({ message: 'Incorrect password' });
     }
 
-    // สร้าง JWT Token
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.status(200).send({ token }); // ส่ง token กลับไปที่ client
+    res.status(200).send({ token });
   } catch (err) {
     console.error('Error logging in:', err);
     return res.status(500).send({ message: 'Server error' });
@@ -73,17 +68,17 @@ app.post('/login', async (req, res) => {
 
 // ฟังก์ชันสำหรับการตรวจสอบ JWT Token
 const authenticateToken = (req, res, next) => {
-  const token = req.header('Authorization')?.split(' ')[1]; // รับค่า token จาก header
-  
+  const token = req.header('Authorization')?.split(' ')[1];
+
   if (!token) {
     return res.status(403).json({ message: 'Access denied: No token provided' });
   }
-  
+
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) {
       return res.status(403).json({ message: 'Access denied: Invalid token' });
     }
-  
+
     req.user = user;
     next();
   });
@@ -92,7 +87,7 @@ const authenticateToken = (req, res, next) => {
 // API สำหรับดึงข้อมูลโปรไฟล์
 app.get('/profile', authenticateToken, async (req, res) => {
   try {
-    const [rows] = await pool.promise().query('SELECT email, first_name FROM users WHERE id = ?', [req.user.id]);
+    const [rows] = await pool.query('SELECT email, first_name FROM users WHERE id = ?', [req.user.id]);
 
     if (rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
@@ -100,75 +95,57 @@ app.get('/profile', authenticateToken, async (req, res) => {
 
     res.json(rows[0]);
   } catch (err) {
-    console.error(err); // Log ข้อผิดพลาด
+    console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
 // API สำหรับการสมัครสมาชิก
-app.post('/register', (req, res) => {
+app.post('/register', async (req, res) => {
   const { firstName, lastName, email, password, phoneNumber, gender, subscribe } = req.body;
 
-  // ตรวจสอบว่าผู้ใช้มีอยู่แล้วหรือไม่
-  pool.promise().query('SELECT * FROM users WHERE email = ?', [email])
-    .then(([results]) => {
-      if (results.length > 0) {
-        return res.status(400).json({ message: 'Email already exists' });
-      }
+  try {
+    const [results] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
 
-      // เข้ารหัสรหัสผ่าน
-      bcrypt.hash(password, 10, (err, hashedPassword) => {
-        if (err) {
-          return res.status(500).json({ message: 'Error hashing password' });
-        }
+    if (results.length > 0) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
 
-        // สร้างผู้ใช้ใหม่
-        const query = 'INSERT INTO users (first_name, last_name, email, password, phone_number, gender, subscribe) VALUES (?, ?, ?, ?, ?, ?, ?)';
-        pool.promise().query(query, [firstName, lastName, email, hashedPassword, phoneNumber, gender, subscribe])
-          .then(([result]) => {
-            return res.status(201).json({ message: 'User registered successfully' });
-          })
-          .catch((err) => {
-            console.error(err);
-            return res.status(500).json({ message: 'Error registering user' });
-          });
-      });
-    })
-    .catch((err) => {
-      console.error(err);
-      return res.status(500).json({ message: 'Error checking email' });
-    });
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const query = 'INSERT INTO users (first_name, last_name, email, password, phone_number, gender, subscribe) VALUES (?, ?, ?, ?, ?, ?, ?)';
+    await pool.query(query, [firstName, lastName, email, hashedPassword, phoneNumber, gender, subscribe]);
+
+    return res.status(201).json({ message: 'User registered successfully' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Error registering user' });
+  }
 });
 
 // API สำหรับการส่งฟอร์ม
 app.post('/submit-form', async (req, res) => {
   const { name, petName, age, gender, category, phone, email, pickupDate } = req.body;
 
-  // ตรวจสอบข้อมูลที่จำเป็น
   if (!name || !petName || !age || !gender || !category || !phone || !email || !pickupDate) {
     return res.status(400).json({ message: 'All fields are required' });
   }
 
-  // ตรวจสอบว่าอีเมลถูกต้องหรือไม่
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ message: 'Invalid email format' });
   }
 
-  // ตรวจสอบอีเมลที่มีอยู่ในฐานข้อมูล
-  const emailCheckQuery = 'SELECT COUNT(*) AS count FROM pet_owner WHERE email = ?';
   try {
-    const [rows] = await pool.promise().query(emailCheckQuery, [email]);
+    const [rows] = await pool.query('SELECT COUNT(*) AS count FROM pet_owner WHERE email = ?', [email]);
     if (rows[0].count > 0) {
       return res.status(400).json({ message: 'Email already exists' });
     }
 
-    // SQL query สำหรับการเพิ่มข้อมูล
     const query = 'INSERT INTO pet_owner (name, pet_name, age_group, gender, category, phone, email, pick_up_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
     const values = [name, petName, age, gender, category, phone, email, pickupDate];
 
-    // ใช้ pool.promise().query แทน pool.execute
-    const [insertResult] = await pool.promise().query(query, values);
+    await pool.query(query, values);
 
     res.status(200).json({ message: 'Form submitted successfully' });
   } catch (err) {
@@ -180,11 +157,10 @@ app.post('/submit-form', async (req, res) => {
 // API สำหรับการโพสต์ข้อมูล
 app.post('/posts', upload.single('image'), async (req, res) => {
   const { name, age, gender, adopt, phone, price } = req.body;
-  const image = req.file ? req.file.path : null; // เส้นทางไฟล์ภาพ
+  const image = req.file ? req.file.path : null;
 
   try {
-    // บันทึกข้อมูลในฐานข้อมูล MySQL
-    const [rows] = await pool.promise().query(
+    const [rows] = await pool.query(
       'INSERT INTO posts (name, age, gender, adopt, phone, price, image_path) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [name, age, gender, adopt, phone, price, image]
     );
@@ -212,7 +188,7 @@ app.get('/pet-owners', async (req, res) => {
       queryParams.push(userEmail);
     }
 
-    const [rows] = await pool.promise().query(query, queryParams);
+    const [rows] = await pool.query(query, queryParams);
 
     res.status(200).json(rows);
   } catch (error) {
@@ -221,16 +197,14 @@ app.get('/pet-owners', async (req, res) => {
   }
 });
 
+// API สำหรับดึงข้อมูลโพสต์
 app.get('/postsa', async (req, res) => {
     try {
-        // SQL query สำหรับดึงข้อมูลจากตาราง posts
         const query = 'SELECT name, age, gender, adopt, phone, price, image_path FROM posts';
-        
-        // ใช้ pool.promise().query แทน pool.execute เพื่อให้สามารถทำงานกับ Promise ได้
-        const [rows] = await pool.promise().query(query);
+        const [rows] = await pool.query(query);
 
         if (rows.length > 0) {
-            res.json(rows); // ส่งข้อมูลเป็น JSON
+            res.json(rows);
         } else {
             res.status(404).send('No posts found');
         }
@@ -240,37 +214,107 @@ app.get('/postsa', async (req, res) => {
     }
 });
 
-app.get('/comments/:postId', async (req, res) => {
-  const postId = req.params.postId;
-
+// API สำหรับดึงความคิดเห็น
+app.get('/comments', async (req, res) => {
   try {
-    const [rows] = await pool.promise().query('SELECT * FROM comments WHERE postId = ?', [postId]);
-    res.status(200).json(rows);
+    const [comments] = await pool.query(
+      'SELECT id, name, comment, created_at FROM comments ORDER BY created_at DESC'
+    );
+
+    res.status(200).json(comments);
   } catch (err) {
     console.error('Error fetching comments:', err);
-    res.status(500).json({ message: 'Database error' });
+    res.status(500).json({ error: 'Database error' });
   }
 });
 
-// 🔹 API เพิ่มความคิดเห็น
-// 🔹 API เพิ่มความคิดเห็น
+// API เพิ่มความคิดเห็น
+// เพิ่มความคิดเห็น
+// API เพิ่มความคิดเห็น
+// เมื่อมีการเพิ่มความคิดเห็นใหม่
+// เมื่อมีการเพิ่มความคิดเห็นใหม่
 app.post('/comments', async (req, res) => {
-  const { postId, username, comment } = req.body;
+  const { name, comment, post_id } = req.body;
 
-  if (!postId || !username || !comment) {
-    return res.status(400).json({ error: "Missing required fields" });
+  // ตรวจสอบข้อมูลที่จำเป็น
+  if (!name || !comment) {
+    return res.status(400).json({ message: "Missing required fields" });
   }
 
   try {
-    const [result] = await pool.promise().query(
-      "INSERT INTO comments (postId, username, comment) VALUES (?, ?, ?)",
-      [postId, username, comment]
+    // หากไม่มี post_id หรือ post_id เป็น null
+    const postId = post_id || null; // ถ้าไม่มี post_id จะตั้งค่าเป็น null
+
+    // เพิ่มความคิดเห็นลงในฐานข้อมูล
+    const query = 'INSERT INTO comments (post_id, name, comment) VALUES (?, ?, ?)';
+    const values = [postId, name, comment];
+
+    await pool.query(query, values);
+
+    res.status(201).json({ message: "Comment added successfully" });
+
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    res.status(500).json({ message: "Failed to add comment" });
+  }
+});
+
+// API สำหรับเปลี่ยนรหัสผ่าน
+app.post('/change-password', authenticateToken, async (req, res) => {
+  const { new_password, current_password } = req.body;
+
+  if (!new_password || !current_password) {
+    return res.status(400).json({ message: 'Both current and new password are required' });
+  }
+
+  try {
+    // ตรวจสอบว่า current_password ถูกต้องหรือไม่
+    const [results] = await pool.query('SELECT password FROM users WHERE id = ?', [req.user.id]);
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const user = results[0];
+
+    const isMatch = await bcrypt.compare(current_password, user.password);
+
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Incorrect current password' });
+    }
+
+    // Hash รหัสผ่านใหม่
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+
+    // อัพเดต password ใหม่ในฐานข้อมูล
+    await pool.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, req.user.id]);
+
+    res.status(200).json({ message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('Error changing password:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+// API สำหรับดึงข้อมูลบัญชีผู้ใช้
+app.get('/account', authenticateToken, async (req, res) => {
+  try {
+    // ดึงข้อมูลจากตาราง users โดยใช้ ID ของผู้ใช้ที่มาจาก JWT
+    const [rows] = await pool.query(
+      'SELECT id, first_name, last_name, email, phone_number, gender, subscribe FROM users WHERE id = ?',
+      [req.user.id]
     );
 
-    res.status(201).json({ message: "Comment added successfully", commentId: result.insertId });
-  } catch (error) {
-    console.error("Error inserting comment:", error);
-    res.status(500).json({ error: "Database error" });
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // ส่งข้อมูลบัญชีผู้ใช้กลับ
+    res.status(200).json(rows[0]);
+  } catch (err) {
+    console.error('Error fetching account details:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
